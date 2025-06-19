@@ -38,14 +38,14 @@ func main() {
 
 	tableHeaderNames := []string{"Date", "Stage"}
 	ignoreList := []string{"Restday"}
-	stages, err := extractData[*Stage](stagesTable, tableHeaderNames, ignoreList, NewStage)
+	stages, err := extractData(stagesTable, tableHeaderNames, ignoreList, NewStage)
 	if err != nil {
 		fmt.Printf("Error extracting stages %v\n", err)
 		return
 	}
 
 	for _, v := range stages {
-		fmt.Println(v)
+		fmt.Printf("Name: %v, Date: %v\n", v.Name, v.Date)
 	}
 
 	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
@@ -66,16 +66,15 @@ func main() {
 	ridersTable := findElementByTagName(ridersTitle.Parent, "table")
 
 	riderTableHeaderName := []string{"Ridername", "Team"}
-	
-	riders, err := extractData[*Rider](ridersTable, riderTableHeaderName, []string{}, NewRider)
+
+	riders, err := extractData(ridersTable, riderTableHeaderName, []string{}, NewRider)
 	if err != nil {
 		fmt.Printf("Error extracting data for riders %v\n", err)
 		return
 	}
 
 	for _, v := range riders {
-		fmt.Println(v.Name)
-		fmt.Println(v.Team)
+		fmt.Printf("Name: %v, Team: %v\n", v.Name, v.Team)
 	}
 }
 
@@ -88,7 +87,7 @@ type Stage struct {
 	Date string
 }
 
-func NewStage() DataItem {
+func NewStage() *Stage {
 	return &Stage{}
 }
 
@@ -115,7 +114,7 @@ func (r *Rider) SetField(fieldName string, value string) {
 	}
 }
 
-func NewRider() DataItem {
+func NewRider() *Rider {
 	return &Rider{}
 }
 
@@ -136,13 +135,11 @@ func getColumnNumbersForHeaders(input *html.Node, headers []string) map[string]i
 	return output
 }
 
-func extractData[V *Stage | *Rider](table *html.Node, fields []string, ignoreList []string, constructor func() DataItem) ([]V, error) {
-
+func extractData[V DataItem](table *html.Node, fields []string, ignoreList []string, constructor func() V) ([]V, error) {
 	thead := findElementByTagName(table, "thead")
 	if thead == nil {
 		return nil, errors.New("Unable to find table head")
 	}
-
 	columns := getColumnNumbersForHeaders(thead, fields)
 
 	tbody := findElementByTagName(table, "tbody")
@@ -164,9 +161,7 @@ outer:
 				}
 				item.SetField(k, val)
 			}
-			if val, ok := item.(V); ok {
-				items = append(items, val)
-			}
+			items = append(items, item)
 		}
 	}
 	return items, nil

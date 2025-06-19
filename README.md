@@ -14,3 +14,13 @@ sudo systemctl start postgresql
 sudo systemctl enable postgresql
 ```
 
+## Development
+Serve example html pages to avoid continually fetching from the internet
+```bash
+python -m http.serve -d examples/html
+```
+
+Run server
+```bash
+go run main.go
+```
