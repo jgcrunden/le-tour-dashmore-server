@@ -12,180 +12,135 @@ import (
 	"golang.org/x/net/html"
 )
 
-const (
-	dataId = "data-id"
-)
+type TableTitleLocator struct {
+	Element   string
+	TitleName string
+}
 
-func main() {
-
-	//homePage := "https://www.procyclingstats.com/race/tour-de-france/2025"
-	homePage := "http://localhost:8000/tour-home-page.html"
-
-	resBody, err := fetchPage(homePage)
+func getNodesFromURL(url string) (*html.Node, error) {
+	resBody, err := fetchPage(url)
 	if err != nil {
 		fmt.Printf("Error fetching page %v\n", err)
-		return
+		return nil, err
 	}
 
 	doc, err := html.Parse(bytes.NewReader(resBody))
 	if err != nil {
 		fmt.Printf("Error parsing html %v\n", err)
-		return
+		return nil, err
+	}
+	return doc, err
+}
+
+func getRaceDetailsTable(url string, element string, htmlContent string) (*html.Node, error) {
+	doc, err := getNodesFromURL(url)
+	if err != nil {
+		fmt.Printf("Error parsing html %v\n", err)
+		return nil, err
 	}
 
-	stagesTitle := findElementWithHtmlContent(doc, "h3", "Stages")
+	stagesTitle := findElementWithHtmlContent(doc, element, htmlContent)
 	if stagesTitle == nil {
 		fmt.Printf("Unable to find stages title\n")
+		return nil, err
+	}
+	table := findElementByTagName(stagesTitle.Parent, "table")
+	if table == nil {
+		err = errors.New("Unable to find table")
+	}
+	return table, err
+}
+
+func getStageTable(doc *html.Node, tableName string) (*html.Node, error) {
+	const dataId = "data-id"
+	var err error
+	stageTitle := findElementWithHtmlContent(doc, "a", tableName)
+	if stageTitle == nil {
+		err = errors.New("Unable to find stage table")
+		return nil, err
+	}
+	stageTableId := getAttribute(stageTitle, dataId)
+	if stageTableId == "" {
+		err = errors.New("Error finding stage table id")
+		return nil, err
+	}
+
+	stageTable := findElementWithAttribute(doc, "div", dataId, stageTableId)
+	if stageTable == nil {
+		err = errors.New("Error finding stage tage")
+	}
+	return stageTable, err
+}
+
+func main() {
+	getRaceDetails()
+
+	getStageResults("http://localhost:8000/stage.html")
+}
+
+func getRaceDetails() {
+	//homePage := "https://www.procyclingstats.com/race/tour-de-france/2025"
+	stagesTable, err := getRaceDetailsTable("http://localhost:8000/tour-home-page.html", "h3", "Stages")
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
-	stagesTable := findElementByTagName(stagesTitle.Parent, "table")
 
-	tableHeaderNames := []string{"Date", "Stage"}
-	ignoreList := []string{"Restday"}
-	_, err = extractData(stagesTable, tableHeaderNames, ignoreList, NewStage)
+	_, err = extractData(stagesTable, []string{"Date", "Stage"}, []string{"Restday"}, NewStage)
 	if err != nil {
 		fmt.Printf("Error extracting stages %v\n", err)
 		return
 	}
 
-	/*
-	for _, v := range stages {
-		fmt.Printf("Name: %v, Date: %v\n", v.Name, v.Date)
-	}
-	*/
-
 	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
-	ridersPage := "http://localhost:8000/riders.html"
-	resBody, err = fetchPage(ridersPage)
+	ridersTable, err := getRaceDetailsTable("http://localhost:8000/riders.html", "h2", "Alphabetical")
 	if err != nil {
-		fmt.Printf("Error fetching page %v\n", err)
+		fmt.Println(err)
 		return
 	}
 
-	doc, err = html.Parse(bytes.NewReader(resBody))
+	_, err = extractData(ridersTable, []string{"Ridername", "Team"}, []string{}, NewRider)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return
+	}
+}
+
+func getStageResults(url string) {
+	// STAGE //
+	doc, err := getNodesFromURL(url)
 	if err != nil {
 		fmt.Printf("Error parsing html %v\n", err)
 		return
 	}
 
-	ridersTitle := findElementWithHtmlContent(doc, "h2", "Alphabetical")
-	ridersTable := findElementByTagName(ridersTitle.Parent, "table")
-
-	riderTableHeaderName := []string{"Ridername", "Team"}
-
-	_, err = extractData(ridersTable, riderTableHeaderName, []string{}, NewRider)
-	if err != nil {
-		fmt.Printf("Error extracting data for riders %v\n", err)
-		return
+	timedTables := []string{"Stage", "GC"}
+	for _, v := range timedTables {
+		stageTable, err := getStageTable(doc, v)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+		_, err = extractData(stageTable, []string{"Rnk", "Rider", "Time"}, []string{}, NewTimedResult)
+		if err != nil {
+			fmt.Printf("Error extracting data for riders %v\n", err)
+			return
+		}
 	}
 
-	/*
-	for _, v := range riders {
-		fmt.Printf("Name: %v, Team: %v\n", v.Name, v.Team)
-	}
-	*/
+	pointsTables := []string{"Points", "KOM"}
+	for _, v := range pointsTables {
+		pointsTable, err := getStageTable(doc, v)
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
 
-	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
-	stagePage := "http://localhost:8000/stage.html"
-	resBody, err = fetchPage(stagePage)
-	if err != nil {
-		fmt.Printf("Error fetching page %v\n", err)
-		return
-	}
-
-	doc, err = html.Parse(bytes.NewReader(resBody))
-	if err != nil {
-		fmt.Printf("Error parsing html %v\n", err)
-		return
-	}
-
-	stageTitle := findElementWithHtmlContent(doc, "a", "Stage")
-	stageTableId := getAttribute(stageTitle, dataId)
-	if stageTableId == "" {
-		fmt.Println("Error finding stage table id")
-		return
-	}
-
-	stageTable := findElementWithAttribute(doc, "div", dataId, stageTableId)
-	if stagesTable == nil {
-		fmt.Println("Error finding stage tage")
-		return
-	}
-
-	stageResults, err := extractData(stageTable, []string{"Rnk", "Rider", "Time"}, []string{}, NewTimedResult)
-	if err != nil {
-		fmt.Printf("Error extracting data for riders %v\n", err)
-		return
-	}
-
-	for _, _ = range stageResults {
-	}
-
-	gcTitle := findElementWithHtmlContent(doc, "a", "GC")
-	gcTableId := getAttribute(gcTitle, dataId)
-	if gcTableId == "" {
-		fmt.Println("Error finding stage table id")
-		return
-	}
-
-	gcTable := findElementWithAttribute(doc, "div", dataId, gcTableId)
-	if gcTable == nil {
-		fmt.Println("Error finding stage tage")
-		return
-	}
-
-	gcResults, err := extractData(gcTable, []string{"Rnk", "Rider", "Time"}, []string{}, NewTimedResult)
-	if err != nil {
-		fmt.Printf("Error extracting data for riders %v\n", err)
-		return
-	}
-
-	for _, _ = range gcResults {
-	}
-
-	pointsTitle := findElementWithHtmlContent(doc, "a", "Points")
-	pointsTableId := getAttribute(pointsTitle, dataId)
-	if pointsTableId == "" {
-		fmt.Println("Error finding stage table id")
-		return
-	}
-
-	pointsTable := findElementWithAttribute(doc, "div", dataId, pointsTableId)
-	if pointsTable == nil {
-		fmt.Println("Error finding stage tage")
-		return
-	}
-
-	pointsResults, err := extractData(pointsTable, []string{"Rnk", "Rider", "Points"}, []string{}, NewPointsResult)
-	if err != nil {
-		fmt.Printf("Error extracting data for riders %v\n", err)
-		return
-	}
-
-	for _, _ = range pointsResults {
-	}
-
-	komTitle := findElementWithHtmlContent(doc, "a", "KOM")
-	komTableId := getAttribute(komTitle, dataId)
-	if komTableId == "" {
-		fmt.Println("Error finding stage table id")
-		return
-	}
-
-	komTable := findElementWithAttribute(doc, "div", dataId, komTableId)
-	if komTable == nil {
-		fmt.Println("Error finding stage tage")
-		return
-	}
-
-	komResults, err := extractData(komTable, []string{"Rnk", "Rider", "Points"}, []string{}, NewPointsResult)
-	if err != nil {
-		fmt.Printf("Error extracting data for riders %v\n", err)
-		return
-	}
-
-	for _, result := range komResults {
-		fmt.Println(result)
+		_, err = extractData(pointsTable, []string{"Rnk", "Rider", "Points"}, []string{}, NewPointsResult)
+		if err != nil {
+			fmt.Printf("Error extracting data for riders %v\n", err)
+			return
+		}
 	}
 }
 
@@ -230,9 +185,9 @@ func (r *Rider) SetField(fieldName string, value string) {
 }
 
 type TimedResult struct {
-	Rank string
+	Rank  string
 	Rider string
-	Time string
+	Time  string
 }
 
 func NewTimedResult() *TimedResult {
@@ -251,8 +206,8 @@ func (r *TimedResult) SetField(fieldName string, value string) {
 }
 
 type PointsResult struct {
-	Rank string
-	Rider string
+	Rank   string
+	Rider  string
 	Points string
 }
 
@@ -408,7 +363,7 @@ func fetchPage(url string) ([]byte, error) {
 
 	resBody, err := io.ReadAll(res.Body)
 	if err != nil {
-		fmt.Printf("Erro reading response body %v\n", err)
+		fmt.Printf("Error reading response body %v\n", err)
 		return nil, err
 	}
 	return resBody, nil
