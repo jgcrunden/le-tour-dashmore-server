@@ -12,6 +12,10 @@ import (
 	"golang.org/x/net/html"
 )
 
+const (
+	dataId = "data-id"
+)
+
 func main() {
 
 	//homePage := "https://www.procyclingstats.com/race/tour-de-france/2025"
@@ -25,7 +29,7 @@ func main() {
 
 	doc, err := html.Parse(bytes.NewReader(resBody))
 	if err != nil {
-		fmt.Printf("Erro parsing html %v\n", err)
+		fmt.Printf("Error parsing html %v\n", err)
 		return
 	}
 
@@ -38,15 +42,17 @@ func main() {
 
 	tableHeaderNames := []string{"Date", "Stage"}
 	ignoreList := []string{"Restday"}
-	stages, err := extractData(stagesTable, tableHeaderNames, ignoreList, NewStage)
+	_, err = extractData(stagesTable, tableHeaderNames, ignoreList, NewStage)
 	if err != nil {
 		fmt.Printf("Error extracting stages %v\n", err)
 		return
 	}
 
+	/*
 	for _, v := range stages {
 		fmt.Printf("Name: %v, Date: %v\n", v.Name, v.Date)
 	}
+	*/
 
 	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
 	ridersPage := "http://localhost:8000/riders.html"
@@ -67,14 +73,119 @@ func main() {
 
 	riderTableHeaderName := []string{"Ridername", "Team"}
 
-	riders, err := extractData(ridersTable, riderTableHeaderName, []string{}, NewRider)
+	_, err = extractData(ridersTable, riderTableHeaderName, []string{}, NewRider)
 	if err != nil {
 		fmt.Printf("Error extracting data for riders %v\n", err)
 		return
 	}
 
+	/*
 	for _, v := range riders {
 		fmt.Printf("Name: %v, Team: %v\n", v.Name, v.Team)
+	}
+	*/
+
+	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
+	stagePage := "http://localhost:8000/stage.html"
+	resBody, err = fetchPage(stagePage)
+	if err != nil {
+		fmt.Printf("Error fetching page %v\n", err)
+		return
+	}
+
+	doc, err = html.Parse(bytes.NewReader(resBody))
+	if err != nil {
+		fmt.Printf("Error parsing html %v\n", err)
+		return
+	}
+
+	stageTitle := findElementWithHtmlContent(doc, "a", "Stage")
+	stageTableId := getAttribute(stageTitle, dataId)
+	if stageTableId == "" {
+		fmt.Println("Error finding stage table id")
+		return
+	}
+
+	stageTable := findElementWithAttribute(doc, "div", dataId, stageTableId)
+	if stagesTable == nil {
+		fmt.Println("Error finding stage tage")
+		return
+	}
+
+	stageResults, err := extractData(stageTable, []string{"Rnk", "Rider", "Time"}, []string{}, NewTimedResult)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return
+	}
+
+	for _, _ = range stageResults {
+	}
+
+	gcTitle := findElementWithHtmlContent(doc, "a", "GC")
+	gcTableId := getAttribute(gcTitle, dataId)
+	if gcTableId == "" {
+		fmt.Println("Error finding stage table id")
+		return
+	}
+
+	gcTable := findElementWithAttribute(doc, "div", dataId, gcTableId)
+	if gcTable == nil {
+		fmt.Println("Error finding stage tage")
+		return
+	}
+
+	gcResults, err := extractData(gcTable, []string{"Rnk", "Rider", "Time"}, []string{}, NewTimedResult)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return
+	}
+
+	for _, _ = range gcResults {
+	}
+
+	pointsTitle := findElementWithHtmlContent(doc, "a", "Points")
+	pointsTableId := getAttribute(pointsTitle, dataId)
+	if pointsTableId == "" {
+		fmt.Println("Error finding stage table id")
+		return
+	}
+
+	pointsTable := findElementWithAttribute(doc, "div", dataId, pointsTableId)
+	if pointsTable == nil {
+		fmt.Println("Error finding stage tage")
+		return
+	}
+
+	pointsResults, err := extractData(pointsTable, []string{"Rnk", "Rider", "Points"}, []string{}, NewPointsResult)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return
+	}
+
+	for _, _ = range pointsResults {
+	}
+
+	komTitle := findElementWithHtmlContent(doc, "a", "KOM")
+	komTableId := getAttribute(komTitle, dataId)
+	if komTableId == "" {
+		fmt.Println("Error finding stage table id")
+		return
+	}
+
+	komTable := findElementWithAttribute(doc, "div", dataId, komTableId)
+	if komTable == nil {
+		fmt.Println("Error finding stage tage")
+		return
+	}
+
+	komResults, err := extractData(komTable, []string{"Rnk", "Rider", "Points"}, []string{}, NewPointsResult)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return
+	}
+
+	for _, result := range komResults {
+		fmt.Println(result)
 	}
 }
 
@@ -105,6 +216,10 @@ type Rider struct {
 	Team string
 }
 
+func NewRider() *Rider {
+	return &Rider{}
+}
+
 func (r *Rider) SetField(fieldName string, value string) {
 	switch fieldName {
 	case "Ridername":
@@ -114,8 +229,57 @@ func (r *Rider) SetField(fieldName string, value string) {
 	}
 }
 
-func NewRider() *Rider {
-	return &Rider{}
+type TimedResult struct {
+	Rank string
+	Rider string
+	Time string
+}
+
+func NewTimedResult() *TimedResult {
+	return &TimedResult{}
+}
+
+func (r *TimedResult) SetField(fieldName string, value string) {
+	switch fieldName {
+	case "Rnk":
+		r.Rank = value
+	case "Rider":
+		r.Rider = value
+	case "Time":
+		r.Time = value
+	}
+}
+
+type PointsResult struct {
+	Rank string
+	Rider string
+	Points string
+}
+
+func NewPointsResult() *PointsResult {
+	return &PointsResult{}
+}
+
+func (r *PointsResult) SetField(fieldName string, value string) {
+	switch fieldName {
+	case "Rnk":
+		r.Rank = value
+	case "Rider":
+		r.Rider = value
+	case "Points":
+		r.Points = value
+	}
+}
+
+func getAttribute(node *html.Node, attributeKey string) string {
+	var res string
+	for _, v := range node.Attr {
+		if v.Key == attributeKey {
+			res = v.Val
+			break
+		}
+	}
+	return res
 }
 
 func getColumnNumbersForHeaders(input *html.Node, headers []string) map[string]int {
@@ -198,12 +362,31 @@ func findElementByTagName(input *html.Node, tagName string) *html.Node {
 	return output
 }
 
+func findElementWithAttribute(input *html.Node, element string, attributeKey string, attributeValue string) *html.Node {
+	var output *html.Node = nil
+	for n := range input.Descendants() {
+		if n.Type == html.ElementNode && n.Data == element {
+			for _, m := range n.Attr {
+				if m.Key == attributeKey && m.Val == attributeValue {
+					output = n
+					break
+				}
+			}
+		}
+	}
+	return output
+}
+
 func findElementWithHtmlContent(input *html.Node, element string, htmlContent string) *html.Node {
 	var output *html.Node = nil
 	for n := range input.Descendants() {
-		if n.Type == html.ElementNode && n.Data == element && n.FirstChild.Data == htmlContent {
-			output = n
-			break
+		if n.Type == html.ElementNode && n.Data == element {
+			for m := range n.Descendants() {
+				if m.Data == htmlContent {
+					output = n
+					break
+				}
+			}
 		}
 	}
 	return output
