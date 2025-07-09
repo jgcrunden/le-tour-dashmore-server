@@ -120,12 +120,12 @@ func (r *TimedResult) ParseTime(leadersTime int) error {
 	return nil
 }
 
-func (r *TimedResult) FixDitto(previousTime string) string {
-	var newTime string
-	if r.TimeStr == ",," {
+func (r *TimedResult) FixDitto(previousTime string, leadersTime string) string {
+	newTime := r.TimeStr
+	if r.TimeStr == ",," && previousTime == leadersTime {
+		newTime = "0:00"
+	} else if r.TimeStr == ",," && previousTime != leadersTime {
 		newTime = previousTime
-	} else {
-		newTime = r.TimeStr
 	}
 	if r.Rank != 1 {
 		r.TimeStr = /*"+" +*/ newTime

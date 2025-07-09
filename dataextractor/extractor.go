@@ -82,7 +82,23 @@ func getStageTable(doc *html.Node, tableName string) (*html.Node, error) {
 	if stageTable == nil {
 		err = errors.New("Error finding stage tage")
 	}
+
+	/*
+	tables := getElementsByType(stageTable, "table")
+	fmt.Println(tables)
+	*/
 	return stageTable, err
+}
+
+func getElementsByType(input *html.Node, elementType string) []*html.Node {
+	res := make([]*html.Node, 0)
+
+	for n := range input.Descendants() {
+		if n.Type == html.ElementNode && n.Data == elementType {
+			res = append(res, n)
+		}
+	}
+	return res
 }
 
 func findElementByTagName(input *html.Node, tagName string) *html.Node {
@@ -285,10 +301,10 @@ func GetStageResults(url string) (map[string]*model.Result, error) {
 			fmt.Println(err)
 			return nil, err
 		}
-		leadersTime := timedResults[0].Time
+		leader := timedResults[0]
 		for _, timedResult := range timedResults {
-			previousTime = timedResult.FixDitto(previousTime)
-			timedResult.ParseTime(leadersTime)
+			previousTime = timedResult.FixDitto(previousTime, leader.TimeStr)
+			timedResult.ParseTime(leader.Time)
 			res = addTimedResultToResultsMap(res, *timedResult, v)
 		}
 
