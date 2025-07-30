@@ -44,6 +44,13 @@ CREATE TABLE rider(
   team VARCHAR,
   points INT
 );
+
+CREATE TABLE stage(
+  id SERIAL PRIMARY KEY,
+  name VARCHAR,
+  date DATE
+);
+
 ````
 
 

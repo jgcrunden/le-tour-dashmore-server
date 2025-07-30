@@ -1,375 +1,322 @@
 package dataextractor
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
-	"slices"
-	"strings"
 
+	"le-tour-dashmore-server/dbclient"
 	"le-tour-dashmore-server/model"
 
 	"golang.org/x/net/html"
 )
 
 const (
-	year   int = 2025
-	GC         = "GC"
-	STAGE      = "STAGE"
-	POINTS     = "POINTS"
-	KOM        = "KOM"
-	YOUTH      = "YOUTH"
-	RNK        = "Rnk"
-	RIDER      = "Rider"
-	TIME       = "Time"
-	PNT        = "Pnt"
+	GC     = "GC"
+	STAGE  = "STAGE"
+	POINTS = "POINTS"
+	KOM    = "KOM"
+	YOUTH  = "YOUTH"
+	RNK    = "Rnk"
+	RIDER  = "Rider"
+	TIME   = "Time"
+	PNT    = "Pnt"
 )
 
-func getNodesFromURL(url string) (*html.Node, error) {
-	resBody, err := fetchPage(url)
-	if err != nil {
-		fmt.Printf("Error fetching page %v\n", err)
-		return nil, err
-	}
+type Extractor struct {
+	client dbclient.DBClient
+	config model.Config
+}
 
-	doc, err := html.Parse(bytes.NewReader(resBody))
+func NewExtractor(dbClient dbclient.DBClient, config model.Config) Extractor {
+	return Extractor{
+		client: dbClient,
+		config: config,
+	}
+}
+
+func (e Extractor) GetStageResults(stage model.Stage) (map[string]*model.LegacyResult, error) {
+	fmt.Println("Getting results for", stage.Name)
+	// STAGE //
+	doc, err := getNodesFromURL(stage.URL)
 	if err != nil {
 		fmt.Printf("Error parsing html %v\n", err)
 		return nil, err
 	}
-	return doc, err
-}
 
-func fetchPage(url string) ([]byte, error) {
-	req, err := http.NewRequest("GET", url, nil)
+	res := make(map[string]*model.LegacyResult)
+
+	res, err = e.processTimedTables(doc, stage, res)
 	if err != nil {
-		fmt.Printf("Error generating request %v\n", err)
+		fmt.Println(err)
 		return nil, err
 	}
 
-	res, err := http.DefaultClient.Do(req)
-	if err != nil {
-		fmt.Printf("Error making request %v\n", err)
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	resBody, err := io.ReadAll(res.Body)
-	if err != nil {
-		fmt.Printf("Error reading response body %v\n", err)
-		return nil, err
-	}
-	return resBody, nil
+	return e.processPointsTables(doc, stage, res)
 }
 
-func getStageTable(doc *html.Node, tableName string) (*html.Node, error) {
-	const dataId = "data-id"
-	var err error
-	stageTitle := findElementWithHtmlContent(doc, "a", tableName)
-	if stageTitle == nil {
-		err = errors.New("Unable to find stage table " + tableName)
-		return nil, err
-	}
-	stageTableId := getAttribute(stageTitle, dataId)
-	if stageTableId == "" {
-		err = errors.New("Error finding stage table id")
-		return nil, err
-	}
-
-	stageTable := findElementWithAttribute(doc, "div", dataId, stageTableId)
-	if stageTable == nil {
-		err = errors.New("Error finding stage tage")
-	}
-
-	/*
-	tables := getElementsByType(stageTable, "table")
-	fmt.Println(tables)
-	*/
-	return stageTable, err
-}
-
-func getElementsByType(input *html.Node, elementType string) []*html.Node {
-	res := make([]*html.Node, 0)
-
-	for n := range input.Descendants() {
-		if n.Type == html.ElementNode && n.Data == elementType {
-			res = append(res, n)
+func (e Extractor) processTimedTables(doc *html.Node, stage model.Stage, res map[string]*model.LegacyResult) (map[string]*model.LegacyResult, error) {
+	timedTables := []string{STAGE, GC, YOUTH}
+	for _, v := range timedTables {
+		fmt.Println("Getting", v)
+		stageTables, err := getStageTables(doc, v)
+		if err != nil {
+			fmt.Println(err)
+			return nil, err
 		}
-	}
-	return res
-}
 
-func findElementByTagName(input *html.Node, tagName string) *html.Node {
-	var output *html.Node = nil
-	for n := range input.Descendants() {
-		if n.Type == html.ElementNode && n.Data == tagName {
-			output = n
-			break
+		jersey, err := e.client.GetJersey(v)
+		if err != nil {
+			fmt.Println("Error getting jersey", err)
 		}
-	}
-	return output
-}
 
-func getAttribute(node *html.Node, attributeKey string) string {
-	var res string
-	for _, v := range node.Attr {
-		if v.Key == attributeKey {
-			res = v.Val
-			break
-		}
-	}
-	return res
-}
-
-func findElementWithAttribute(input *html.Node, element string, attributeKey string, attributeValue string) *html.Node {
-	var output *html.Node = nil
-	for n := range input.Descendants() {
-		if n.Type == html.ElementNode && n.Data == element {
-			for _, m := range n.Attr {
-				if m.Key == attributeKey && m.Val == attributeValue {
-					output = n
-					break
-				}
+		for i, stageTable := range stageTables {
+			timedResults, err := extractData(stageTable, []string{RNK, RIDER, TIME}, []string{}, model.NewTimedResult)
+			if err != nil {
+				fmt.Printf("Error extracting data for riders %v\n", err)
+				return nil, err
 			}
-		}
-	}
-	return output
-}
 
-func findElementWithHtmlContent(input *html.Node, element string, htmlContent string) *html.Node {
-	var output *html.Node = nil
-	for n := range input.Descendants() {
-		if n.Type == html.ElementNode && n.Data == element {
-			for m := range n.Descendants() {
-				if m.Data == htmlContent {
-					output = n
-					break
-				}
+			previousTime := ""
+			if err := timedResults[0].ParseTime(0); err != nil {
+				fmt.Println(err)
+				return nil, err
 			}
-		}
-	}
-	return output
-}
-
-func getColumnNumbersForHeaders(input *html.Node, headers []string) map[string]int {
-	output := make(map[string]int)
-	for _, v := range headers {
-		position := 0
-		for n := range input.Descendants() {
-			if n.Type == html.ElementNode && n.Data == "th" {
-				position++
-				if n.FirstChild != nil && n.FirstChild.Data == v {
-					output[v] = position
-					break
-				}
-			}
-		}
-	}
-	return output
-}
-
-func getValueAtColumn(input *html.Node, column int, isRider bool) string {
-	counter := 0
-	var res string
-out:
-	for n := range input.ChildNodes() {
-		if n.Type == html.ElementNode && n.Data == "td" {
-			counter++
-			if counter == column {
-				for m := range n.Descendants() {
-					if m.Type == html.TextNode && strings.TrimSpace(m.Data) != "" {
-						if isRider {
-							res = fmt.Sprintf("%s%s", strings.ToUpper(m.Data), m.Parent.NextSibling.Data)
-						} else {
-							res = m.Data
-						}
-						break out
+			leader := timedResults[0]
+			for _, timedResult := range timedResults {
+				previousTime = timedResult.FixDitto(previousTime, leader.TimeStr)
+				timedResult.ParseTime(leader.Time)
+				res = addTimedResultToResultsMap(res, *timedResult, v)
+				if v == STAGE || (v == YOUTH && i == 1) {
+					// add to stage results table
+					err := e.client.AddTimedResult(timedResult, stage.ID, jersey.ID)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					// add to jersey rank table
+					err := e.client.AddJerseyRanking(timedResult, stage.ID, jersey.ID)
+					if err != nil {
+						return nil, err
 					}
 				}
 			}
 		}
 	}
-	return res
+	return res, nil
 }
 
-func extractData[V model.DataItem](table *html.Node, fields []string, ignoreList []string, constructor func() V) ([]V, error) {
-	thead := findElementByTagName(table, "thead")
-	if thead == nil {
-		return nil, errors.New("Unable to find table head")
-	}
-	columns := getColumnNumbersForHeaders(thead, fields)
-
-	tbody := findElementByTagName(table, "tbody")
-	if tbody == nil {
-		return nil, errors.New("Unable to find table head")
-	}
-
-	itemCount := 0
-	var items []V = make([]V, 0)
-outer:
-	for n := range tbody.ChildNodes() {
-		if n.Type == html.ElementNode {
-			itemCount++
-			item := constructor()
-			for k, v := range columns {
-				val := getValueAtColumn(n, v, k == "Rider")
-				if val == "" || slices.Contains(ignoreList, val) {
-					continue outer
-				}
-				item.SetField(k, val)
-			}
-			items = append(items, item)
-		}
-	}
-	return items, nil
-}
-
-func addTimedResultToResultsMap(resultsMap map[string]*model.Result, timedResult model.TimedResult, resultType string) map[string]*model.Result {
-	if resultsMap[timedResult.Rider] == nil {
-		resultsMap[timedResult.Rider] = &model.Result{}
-	}
-	switch resultType {
-	case GC:
-		resultsMap[timedResult.Rider].Time = timedResult.TimeStr
-		resultsMap[timedResult.Rider].TimeRanking = timedResult.Rank
-	case YOUTH:
-		resultsMap[timedResult.Rider].YoungRiderRanking = timedResult.Rank
-	}
-	return resultsMap
-}
-
-func addPointsResultToResultsMap(resultsMap map[string]*model.Result, pointsResult model.PointsResult, resultType string) map[string]*model.Result {
-	if resultsMap[pointsResult.Rider] == nil {
-		resultsMap[pointsResult.Rider] = &model.Result{}
-	}
-	switch resultType {
-	case POINTS:
-		resultsMap[pointsResult.Rider].Sprint = pointsResult.Points
-		resultsMap[pointsResult.Rider].SprintRanking = pointsResult.Rank
-	case KOM:
-		resultsMap[pointsResult.Rider].Climber = pointsResult.Points
-		resultsMap[pointsResult.Rider].ClimberRanking = pointsResult.Rank
-	}
-	return resultsMap
-}
-
-func getRaceDetailsTable(url string, element string, htmlContent string) (*html.Node, error) {
-	doc, err := getNodesFromURL(url)
-	if err != nil {
-		fmt.Printf("Error parsing html %v\n", err)
-		return nil, err
-	}
-
-	stagesTitle := findElementWithHtmlContent(doc, element, htmlContent)
-	if stagesTitle == nil {
-		fmt.Printf("Unable to find stages title\n")
-		return nil, err
-	}
-	table := findElementByTagName(stagesTitle.Parent, "table")
-	if table == nil {
-		err = errors.New("Unable to find table")
-	}
-	return table, err
-}
-
-func GetStageResults(url string) (map[string]*model.Result, error) {
-	// STAGE //
-	doc, err := getNodesFromURL(url)
-	if err != nil {
-		fmt.Printf("Error parsing html %v\n", err)
-		return nil, err
-	}
-
-	res := make(map[string]*model.Result)
-	timedTables := []string{STAGE, GC, YOUTH}
-	for _, v := range timedTables {
-		stageTable, err := getStageTable(doc, v)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		timedResults, err := extractData(stageTable, []string{RNK, RIDER, TIME}, []string{}, model.NewTimedResult)
-		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
-			return nil, err
-		}
-
-		previousTime := ""
-		if err := timedResults[0].ParseTime(0); err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		leader := timedResults[0]
-		for _, timedResult := range timedResults {
-			previousTime = timedResult.FixDitto(previousTime, leader.TimeStr)
-			timedResult.ParseTime(leader.Time)
-			res = addTimedResultToResultsMap(res, *timedResult, v)
-		}
-
-	}
-
+func (e Extractor) processPointsTables(doc *html.Node, stage model.Stage, res map[string]*model.LegacyResult) (map[string]*model.LegacyResult, error) {
 	pointsTables := []string{POINTS, KOM}
 	for _, v := range pointsTables {
-		pointsTable, err := getStageTable(doc, v)
+		fmt.Println("Getting", v)
+		pointsTables, err := getStageTables(doc, v)
 		if err != nil {
 			fmt.Println(err)
 			return nil, err
 		}
 
-		pointsResults, err := extractData(pointsTable, []string{RNK, RIDER, PNT}, []string{}, model.NewPointsResult)
+		jersey, err := e.client.GetJersey(v)
 		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
+			fmt.Println("Error getting jersey", e)
 			return nil, err
 		}
 
-		for _, pointsResult := range pointsResults {
-			res = addPointsResultToResultsMap(res, *pointsResult, v)
+		for i, pointsTable := range pointsTables {
+			splitID := 0
+			if i > 0 {
+				// add to stage results table
+				splitName := pointsTable.PrevSibling.PrevSibling.FirstChild.Data
+				splitID, err = e.client.AddSplit(splitName, stage.ID)
+				if err != nil {
+					fmt.Println("Error adding split", splitName)
+					return nil, err
+				}
+			}
+			pointsResults, err := extractData(pointsTable, []string{RNK, RIDER, PNT}, []string{}, model.NewPointsResult)
+			if err != nil {
+				fmt.Printf("Error extracting data for riders %v\n", err)
+				return nil, err
+			}
+
+			for _, pointsResult := range pointsResults {
+				res = addPointsResultToResultsMap(res, *pointsResult, v)
+				if i > 0 {
+					err = e.client.AddPointsResult(pointsResult, stage.ID, jersey.ID, splitID)
+					if err != nil {
+						return nil, err
+					}
+				} else {
+					err = e.client.AddJerseyRanking(pointsResult, stage.ID, jersey.ID)
+					if err != nil {
+						return nil, err
+					}
+					// add to classification results table
+				}
+			}
 		}
 	}
 	return res, nil
 }
 
-func GetRaceDetails() {
-	//homePage := "https://www.procyclingstats.com/race/tour-de-france/2025"
-	stagesTable, err := getRaceDetailsTable("http://localhost:8000/tour-home-page.html", "h3", "Stages")
+func (e Extractor) GetRaceDetails() {
+	fmt.Println("Getting race details")
+
+	err := e.getStages()
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 
-	_, err = extractData(stagesTable, []string{"Date", "", "Stage"}, []string{"Restday"}, model.NewStage)
+	err = e.getTeams()
 	if err != nil {
-		fmt.Printf("Error extracting stages %v\n", err)
+		fmt.Println(err)
 		return
 	}
 
-	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
-	/*
-		ridersTable, err := getRaceDetailsTable("http://localhost:8000/top-competitors.html", "h2", "Top competitors")
+	err = e.getRiders()
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+}
+
+func (e Extractor) CalculatePoints() error {
+
+	riders, err := e.client.GetAllRiders()
+	if err != nil {
+		fmt.Println("Unable to get riders", err)
+		return err
+	}
+
+	for _, rider := range riders {
+		timedResultPoints, err := e.client.GetTimedResultPoints(rider.ID)
+		if err != nil {
+			fmt.Println("Error getting timed results points", err)
+			return err
+		}
+		pointsResultPoints, err := e.client.GetPointsResultPoints(rider.ID)
+		if err != nil {
+			fmt.Println("Error getting jersey ranking points", err)
+			return err
+		}
+		jerseyResultPoints, err := e.client.GetJerseyRankingPoints(rider.ID)
+		if err != nil {
+			fmt.Println("Error getting jersey ranking points", err)
+			return err
+		}
+
+		total := timedResultPoints + pointsResultPoints + jerseyResultPoints
+		err = e.client.UpdateRiderPoints(rider.ID, total)
 		if err != nil {
 			fmt.Println(err)
-			return
+			return err
 		}
+	}
+	return nil
+}
 
-		_, err = extractData(ridersTable, []string{"Rider", "Team", "Points"}, []string{}, NewRider)
+func (e Extractor) getStages() error {
+	fmt.Println("Getting stages")
+	stagesTable, err := getRaceDetailsTable(e.config.TourExtension, "h4", "Stages")
+	if err != nil {
+		fmt.Println("Error getting race details table", err)
+		return err
+	}
+
+	stages, err := extractData(stagesTable, []string{"Date", "", "Stage"}, []string{"Restday"}, model.NewStage)
+	for i := range len(stages) {
+		stages[i].URL = fmt.Sprintf("%s/stage-%d", e.config.TourExtension, i+1)
+	}
+	if err != nil {
+		fmt.Printf("Error extracting stages %v\n", err)
+		return err
+	}
+
+	for _, stage := range stages {
+		err = e.client.AddStage(stage)
 		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
-			return
+			fmt.Println("Error adding stage", err)
+			return err
 		}
+	}
+	return nil
+}
 
-	*/
+func (e Extractor) getTeams() error {
+	fmt.Println("Getting teams")
+	teamsList, err := getTeamsList(e.config.TourExtension, "h4", "Teams")
+	if err != nil {
+		fmt.Println("Error getting teams list", err)
+		return err
+	}
 
-	//getAllStagesFromDatabase()
-	/*
-		for _, v := range riders {
-			err := addRiderToDatabase(v)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
+	teams := extractDataFromList(teamsList, e.config.CyclingStatsBaseURL)
+	if teams == nil {
+		return errors.New("Error extract teams from list")
+	}
+
+	for _, v := range teams {
+		img, err := e.getJerseyImage(v.TeamURL, "div", "Jersey: ")
+		if err != nil {
+			fmt.Println(err)
+			return err
 		}
-	*/
+		v.JerseyImage = img
+		err = e.client.AddTeam(&v)
+		if err != nil {
+			fmt.Println("Error adding team", v.Name)
+			return err
+		}
+	}
+	return nil
+}
 
+func (e Extractor) getRiders() error {
+	fmt.Println("Getting riders")
+	ridersTable, err := getRaceDetailsTable(fmt.Sprintf("%s/startlist/top-competitors", e.config.TourExtension), "h2", "Top competitors")
+	if err != nil {
+		fmt.Println("Error getting riders table", err)
+		return err
+	}
+
+	riders, err := extractData(ridersTable, []string{"Rider", "Team", "Points"}, []string{}, model.NewRider)
+	if err != nil {
+		fmt.Printf("Error extracting data for riders %v\n", err)
+		return err
+	}
+
+	for _, v := range riders {
+		err := e.client.AddRider(v)
+		if err != nil {
+			fmt.Println("Error adding rider", v.Name)
+			return err
+		}
+	}
+	return nil
+}
+
+func (e Extractor) getJerseyImage(url string, element string, htmlContent string) ([]byte, error) {
+	doc, err := getNodesFromURL(url)
+	if err != nil {
+		fmt.Printf("Error parsing html %v\n", err)
+		return nil, err
+	}
+
+	jerseyImageSection := findElementWithHtmlContent(doc, element, htmlContent)
+	if jerseyImageSection == nil {
+		fmt.Printf("Unable to find teams jersey\n")
+		return nil, err
+	}
+
+	jerseyImageTag := findElementByTagName(jerseyImageSection.Parent, "img")
+	if jerseyImageTag == nil {
+		err = errors.New("Unable to find teams list")
+		return nil, err
+	}
+	jerseyImageLink := getAttribute(jerseyImageTag, "src")
+	if jerseyImageLink == "" {
+		return nil, errors.New("Unable to find jersey image")
+	}
+
+	return fetchPage(fmt.Sprintf("%s/%s", e.config.CyclingStatsBaseURL, jerseyImageLink))
 }
