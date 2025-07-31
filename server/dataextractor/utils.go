@@ -5,26 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"le-tour-dashmore-server/model"
 	"net/http"
 	"slices"
 	"strings"
 
-	"le-tour-dashmore-server/model"
-
 	"golang.org/x/net/html"
-)
-
-const (
-	year   int = 2025
-	GC         = "GC"
-	STAGE      = "STAGE"
-	POINTS     = "POINTS"
-	KOM        = "KOM"
-	YOUTH      = "YOUTH"
-	RNK        = "Rnk"
-	RIDER      = "Rider"
-	TIME       = "Time"
-	PNT        = "Pnt"
 )
 
 func getNodesFromURL(url string) (*html.Node, error) {
@@ -64,7 +50,7 @@ func fetchPage(url string) ([]byte, error) {
 	return resBody, nil
 }
 
-func getStageTable(doc *html.Node, tableName string) (*html.Node, error) {
+func getStageTables(doc *html.Node, tableName string) ([]*html.Node, error) {
 	const dataId = "data-id"
 	var err error
 	stageTitle := findElementWithHtmlContent(doc, "a", tableName)
@@ -83,11 +69,8 @@ func getStageTable(doc *html.Node, tableName string) (*html.Node, error) {
 		err = errors.New("Error finding stage tage")
 	}
 
-	/*
 	tables := getElementsByType(stageTable, "table")
-	fmt.Println(tables)
-	*/
-	return stageTable, err
+	return tables, err
 }
 
 func getElementsByType(input *html.Node, elementType string) []*html.Node {
@@ -208,13 +191,16 @@ func extractData[V model.DataItem](table *html.Node, fields []string, ignoreList
 
 	itemCount := 0
 	var items []V = make([]V, 0)
+
+	_, isRidersTable := any(items).([]*model.Rider)
 outer:
 	for n := range tbody.ChildNodes() {
 		if n.Type == html.ElementNode {
 			itemCount++
 			item := constructor()
 			for k, v := range columns {
-				val := getValueAtColumn(n, v, k == "Rider")
+				// TODO and V is not model.Rider
+				val := getValueAtColumn(n, v, k == "Rider" && !isRidersTable)
 				if val == "" || slices.Contains(ignoreList, val) {
 					continue outer
 				}
@@ -226,9 +212,27 @@ outer:
 	return items, nil
 }
 
-func addTimedResultToResultsMap(resultsMap map[string]*model.Result, timedResult model.TimedResult, resultType string) map[string]*model.Result {
+func extractDataFromList(list *html.Node, baseURL string) []model.Team {
+	teams := make([]model.Team, 0)
+	for n := range list.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "a" {
+			teamURL := getAttribute(n, "href")
+			for m := range n.Descendants() {
+				if m.Type == html.TextNode && m.Data != "" {
+					teams = append(teams, model.Team{
+						Name: m.Data,
+						TeamURL: fmt.Sprintf("%s/%s", baseURL, teamURL),
+					})
+				}
+			}
+		}
+	}
+	return teams
+}
+
+func addTimedResultToResultsMap(resultsMap map[string]*model.LegacyResult, timedResult model.TimedResult, resultType string) map[string]*model.LegacyResult {
 	if resultsMap[timedResult.Rider] == nil {
-		resultsMap[timedResult.Rider] = &model.Result{}
+		resultsMap[timedResult.Rider] = &model.LegacyResult{}
 	}
 	switch resultType {
 	case GC:
@@ -240,9 +244,9 @@ func addTimedResultToResultsMap(resultsMap map[string]*model.Result, timedResult
 	return resultsMap
 }
 
-func addPointsResultToResultsMap(resultsMap map[string]*model.Result, pointsResult model.PointsResult, resultType string) map[string]*model.Result {
+func addPointsResultToResultsMap(resultsMap map[string]*model.LegacyResult, pointsResult model.PointsResult, resultType string) map[string]*model.LegacyResult {
 	if resultsMap[pointsResult.Rider] == nil {
-		resultsMap[pointsResult.Rider] = &model.Result{}
+		resultsMap[pointsResult.Rider] = &model.LegacyResult{}
 	}
 	switch resultType {
 	case POINTS:
@@ -274,102 +278,22 @@ func getRaceDetailsTable(url string, element string, htmlContent string) (*html.
 	return table, err
 }
 
-func GetStageResults(url string) (map[string]*model.Result, error) {
-	// STAGE //
+func getTeamsList(url string, element string, htmlContent string) (*html.Node, error) {
 	doc, err := getNodesFromURL(url)
 	if err != nil {
 		fmt.Printf("Error parsing html %v\n", err)
 		return nil, err
 	}
 
-	res := make(map[string]*model.Result)
-	timedTables := []string{STAGE, GC, YOUTH}
-	for _, v := range timedTables {
-		stageTable, err := getStageTable(doc, v)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		timedResults, err := extractData(stageTable, []string{RNK, RIDER, TIME}, []string{}, model.NewTimedResult)
-		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
-			return nil, err
-		}
-
-		previousTime := ""
-		if err := timedResults[0].ParseTime(0); err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-		leader := timedResults[0]
-		for _, timedResult := range timedResults {
-			previousTime = timedResult.FixDitto(previousTime, leader.TimeStr)
-			timedResult.ParseTime(leader.Time)
-			res = addTimedResultToResultsMap(res, *timedResult, v)
-		}
-
+	teamsTitle := findElementWithHtmlContent(doc, element, htmlContent)
+	if teamsTitle == nil {
+		fmt.Printf("Unable to find teams title\n")
+		return nil, err
 	}
 
-	pointsTables := []string{POINTS, KOM}
-	for _, v := range pointsTables {
-		pointsTable, err := getStageTable(doc, v)
-		if err != nil {
-			fmt.Println(err)
-			return nil, err
-		}
-
-		pointsResults, err := extractData(pointsTable, []string{RNK, RIDER, PNT}, []string{}, model.NewPointsResult)
-		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
-			return nil, err
-		}
-
-		for _, pointsResult := range pointsResults {
-			res = addPointsResultToResultsMap(res, *pointsResult, v)
-		}
+	table := findElementByTagName(teamsTitle.Parent, "ul")
+	if table == nil {
+		err = errors.New("Unable to find teams list")
 	}
-	return res, nil
-}
-
-func GetRaceDetails() {
-	//homePage := "https://www.procyclingstats.com/race/tour-de-france/2025"
-	stagesTable, err := getRaceDetailsTable("http://localhost:8000/tour-home-page.html", "h3", "Stages")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-
-	_, err = extractData(stagesTable, []string{"Date", "", "Stage"}, []string{"Restday"}, model.NewStage)
-	if err != nil {
-		fmt.Printf("Error extracting stages %v\n", err)
-		return
-	}
-
-	//ridersPage := "https://www.procyclingstats.com/race/tour-de-france/2025/startlist/alphabetical"
-	/*
-		ridersTable, err := getRaceDetailsTable("http://localhost:8000/top-competitors.html", "h2", "Top competitors")
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		_, err = extractData(ridersTable, []string{"Rider", "Team", "Points"}, []string{}, NewRider)
-		if err != nil {
-			fmt.Printf("Error extracting data for riders %v\n", err)
-			return
-		}
-
-	*/
-
-	//getAllStagesFromDatabase()
-	/*
-		for _, v := range riders {
-			err := addRiderToDatabase(v)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-		}
-	*/
-
+	return table, err
 }

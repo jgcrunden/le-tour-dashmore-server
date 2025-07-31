@@ -7,7 +7,15 @@ import (
 	"time"
 )
 
-type Result struct {
+type Config struct {
+	DBHost              string `properties:"db.host"`
+	DBUser              string `properties:"db.user"`
+	DBPassword          string `properties:"db.password"`
+	CyclingStatsBaseURL string `properties:"cycling_stats.baseUrl"`
+	TourExtension       string `properties:"cycling_stats.tour_extension"`
+}
+
+type LegacyResult struct {
 	Time              string
 	TimeRanking       int `json:"time_ranking"`
 	SprintRanking     int `json:"sprint_ranking"`
@@ -25,6 +33,7 @@ type Stage struct {
 	ID   int
 	Name string
 	Date time.Time
+	URL  string
 }
 
 func NewStage() *Stage {
@@ -44,6 +53,18 @@ func (s *Stage) SetField(fieldName string, value string) {
 	case "Stage":
 		s.Name = value
 	}
+}
+
+type Jersey struct {
+	ID   int
+	Type string
+}
+
+type Team struct {
+	ID          int
+	Name        string
+	TeamURL     string
+	JerseyImage []byte
 }
 
 type Rider struct {
@@ -69,9 +90,9 @@ func (r *Rider) SetField(fieldName string, value string) {
 	}
 }
 
-type GCResult struct {
-	Time int
-	Rank int
+type JerseyResult interface {
+	GetRider() string
+	GetRank() int
 }
 
 type TimedResult struct {
@@ -83,6 +104,14 @@ type TimedResult struct {
 
 func NewTimedResult() *TimedResult {
 	return &TimedResult{}
+}
+
+func (r TimedResult) GetRider() string {
+	return r.Rider
+}
+
+func (r TimedResult) GetRank() int {
+	return r.Rank
 }
 
 func (r *TimedResult) SetField(fieldName string, value string) {
@@ -101,11 +130,12 @@ func (r *TimedResult) ParseTime(leadersTime int) error {
 	var h, m, s int
 	var err error
 	numOfColons := strings.Count(r.TimeStr, ":")
-	if numOfColons == 0 {
+	switch numOfColons {
+	case 0:
 		_, err = fmt.Sscanf(r.TimeStr, "%d", &s)
-	} else if numOfColons == 1 {
+	case 1:
 		_, err = fmt.Sscanf(r.TimeStr, "%d:%d", &m, &s)
-	} else if numOfColons == 2 {
+	case 2:
 		_, err = fmt.Sscanf(r.TimeStr, "%d:%d:%d", &h, &m, &s)
 	}
 
@@ -141,6 +171,14 @@ type PointsResult struct {
 
 func NewPointsResult() *PointsResult {
 	return &PointsResult{}
+}
+
+func (r PointsResult) GetRider() string {
+	return r.Rider
+}
+
+func (r PointsResult) GetRank() int {
+	return r.Rank
 }
 
 func (r *PointsResult) SetField(fieldName string, value string) {
