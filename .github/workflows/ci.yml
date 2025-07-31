@@ -18,4 +18,4 @@ jobs:
       - name: npm install
         run: npm ci
       - name: Run unit tests
-        run: npRun m run test
+        run: make test
