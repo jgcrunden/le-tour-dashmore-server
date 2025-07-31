@@ -5,7 +5,7 @@ resource "aws_route53domains_registered_domain" "this" {
     for_each = toset(aws_route53_zone.le_tour_hosted_zone.name_servers)
     content {
       name = name_server.value
-       
+
     }
   }
 }
@@ -44,7 +44,7 @@ resource "aws_route53_record" "url_ip6" {
 }
 
 resource "aws_route53_record" "www_ip4" {
-  name    = "${var.domain_name}"
+  name    = var.domain_name
   zone_id = aws_route53_zone.le_tour_hosted_zone.zone_id
   type    = "A"
 

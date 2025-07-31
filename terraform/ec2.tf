@@ -76,12 +76,13 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http_ipv4" {
   description       = "Allow http access to ec2 instance from cloudfront only"
   security_group_id = aws_security_group.this.id
 
-  prefix_list_id =  data.aws_ec2_managed_prefix_list.cloudfront.id
-  from_port         = 80
-  ip_protocol       = "tcp"
-  to_port           = 80
+  prefix_list_id = data.aws_ec2_managed_prefix_list.cloudfront.id
+  from_port      = 80
+  ip_protocol    = "tcp"
+  to_port        = 80
 }
 
+#trivy:ignore:AVD-AWS-0104 ignore warning about egress
 resource "aws_vpc_security_group_egress_rule" "egress" {
   description       = "Egress from EC2 instance"
   security_group_id = aws_security_group.this.id

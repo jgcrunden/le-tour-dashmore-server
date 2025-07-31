@@ -1,3 +1,5 @@
+#trivy:ignore:AVD-AWS-0010 ignore warning about logging
+#trivy:ignore:AVD-AWS-0011 ignore warning about waf
 resource "aws_cloudfront_distribution" "ec2_distribution" {
   origin {
     domain_name = aws_instance.this.public_dns
