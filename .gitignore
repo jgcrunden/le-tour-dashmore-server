@@ -33,3 +33,5 @@ go.work.sum
 application.properties
 
 **/.terraform/*
+
+node_modules
