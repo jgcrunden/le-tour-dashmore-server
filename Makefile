@@ -1,4 +1,4 @@
 .PHONY: test
 
 test:
-	@pushd server && go test ./... && popd
+	@cd server && go test ./... && cd ..
