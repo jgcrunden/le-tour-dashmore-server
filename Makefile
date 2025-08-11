@@ -1,11 +1,28 @@
-.PHONY: help test tf-test
+.PHONY: help clean build test tf-test
 
-help:           ## Show this help.
-	@fgrep -h "##" $(MAKEFILE_LIST) | fgrep -v fgrep | sed -e 's/\\$$//' | sed -e 's/##//'
+APP:=le-tour-dashmore-server
+VERSION:=$(shell git describe --tags $(shell git rev-list --tags --max-count=1))
+help:		## Show this help.
+	@grep -Fh "##" $(MAKEFILE_LIST) | grep -Fv grep -F | sed -e 's/\\$$//' | sed -e 's/##//'
 
-test: ## Runs the tests for the server
+clean:
+	rm -rf target
+
+build:
+	cd server && go build -o ../target/$(APP) main.go
+
+package: build
+	cd ~/rpmbuild && rm -rf SOURCES/* rm BUILD/*
+	cd target && \
+		mkdir $(APP)-$(VERSION) && \
+		cp $(APP) $(APP)-$(VERSION) && \
+		tar zcvf $(APP)-$(VERSION).tar.gz $(APP)-$(VERSION) && \
+		cp $(APP)-$(VERSION).tar.gz ~/rpmbuild/SOURCES/
+	rpmbuild --target "x86_64" --define "_version ${VERSION}"  -bb le-tour.spec
+
+test:		## Runs the tests for the server
 	@cd server && go test ./... && cd ..
 
-tf-test: ## Runs terraform fmt, lint and trivy
-	cd terraform
-	terraform fmt -check
+tf-test:	## Runs terraform fmt, lint and trivy
+	cd terraform && terraform fmt -check
+
