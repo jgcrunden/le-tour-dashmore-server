@@ -12,6 +12,7 @@ build:
 	cd server && go build -o ../target/$(APP) main.go
 
 package: build
+	mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPM}
 	cd ~/rpmbuild && rm -rf SOURCES/* rm BUILD/*
 	cd target && \
 		mkdir $(APP)-$(VERSION) && \
@@ -19,6 +20,7 @@ package: build
 		tar zcvf $(APP)-$(VERSION).tar.gz $(APP)-$(VERSION) && \
 		cp $(APP)-$(VERSION).tar.gz ~/rpmbuild/SOURCES/
 	rpmbuild --target "x86_64" --define "_version ${VERSION}"  -bb le-tour.spec
+	rpmsign --addsign ~/rpmbuild/RPMS/x86_64/le-tour-dashmore-server*.rpm
 
 test:		## Runs the tests for the server
 	@cd server && go test ./... && cd ..

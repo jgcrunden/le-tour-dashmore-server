@@ -11,6 +11,7 @@ Requires: postgresql
 
 %define appuser letour
 %global debug_package %{nil}
+%global source_date_epoch_from_changelog %{nil}
 
 %description
 The API server for Le Tour d'Ashmore
@@ -41,8 +42,6 @@ if [ $? -eq 0 ]
 then
     userdel %{appuser}
 fi
-
-
 
 %files
 %{_bindir}/%{name}

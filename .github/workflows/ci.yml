@@ -7,22 +7,31 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    container:
+      image: fedora:42
     steps:
+      - name: Install dependencies
+        run: dnf install make go git awscli unzip nodejs npm -y
+
       - name: Checkout repo
         uses: actions/checkout@v4
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@main
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Set up terraform
         uses: hashicorp/setup-terraform@v3
+
       - name: Setup TFLint
         uses: terraform-linters/setup-tflint@v4
+
       - name: Setup Trivy
         uses: aquasecurity/setup-trivy@v0.2.3
+
       - name: Test Terraform
         run: |
           cd terraform
