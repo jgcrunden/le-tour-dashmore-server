@@ -29,7 +29,7 @@ resource "aws_instance" "this" {
     encrypted = true
   }
   key_name               = aws_key_pair.ssh_access.id
-  vpc_security_group_ids = [aws_security_group.this.id]
+  vpc_security_group_ids = [aws_security_group.this.id, aws_security_group.webhook.id]
 }
 
 resource "aws_key_pair" "ssh_access" {
@@ -40,7 +40,11 @@ resource "aws_key_pair" "ssh_access" {
 resource "aws_security_group" "this" {
   name        = "Security group for EC2 instance"
   description = "Allow SSH inbound traffic, http inbound from cloudfront and all outbound traffic"
-  //vpc_id      = aws_vpc.main.id
+}
+
+resource "aws_security_group" "webhook" {
+  name        = "Security group for Webhook to EC2 instance"
+  description = "Allow webhook acces from cloudfront"
 }
 
 data "http" "myip" {
@@ -84,7 +88,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_http_ipv4" {
 
 resource "aws_vpc_security_group_ingress_rule" "webhook_allow_http_ipv4" {
   description       = "Webhook - Allow http access to ec2 instance from cloudfront only"
-  security_group_id = aws_security_group.this.id
+  security_group_id = aws_security_group.webhook.id
 
   prefix_list_id = data.aws_ec2_managed_prefix_list.cloudfront.id
   from_port      = var.webhook_port

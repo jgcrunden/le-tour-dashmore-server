@@ -34,8 +34,8 @@ resource "aws_cloudfront_distribution" "ec2_distribution" {
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    default_ttl            = 0
+    max_ttl                = 0
   }
 
   price_class = "PriceClass_All"
@@ -61,8 +61,8 @@ resource "aws_cloudfront_distribution" "webhook_distribution" {
     origin_id   = aws_instance.this.public_dns
 
     custom_origin_config {
-      http_port              = var.webhook_port
-      https_port             = var.webhook_port
+      http_port              = 9000
+      https_port             = 443
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
@@ -73,7 +73,7 @@ resource "aws_cloudfront_distribution" "webhook_distribution" {
   is_ipv6_enabled     = true
   default_root_object = ""
 
-  aliases = [var.domain_name]
+  aliases = [format("webhook.%s", var.domain_name)]
 
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD"]
@@ -90,8 +90,8 @@ resource "aws_cloudfront_distribution" "webhook_distribution" {
 
     viewer_protocol_policy = "redirect-to-https"
     min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
+    default_ttl            = 0
+    max_ttl                = 0
   }
 
   price_class = "PriceClass_All"

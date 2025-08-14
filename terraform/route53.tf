@@ -56,7 +56,7 @@ resource "aws_route53_record" "www_ip4" {
 }
 
 resource "aws_route53_record" "webhook_url_ip6" {
-  name    = var.domain_name
+  name    = format("webhook.%s", var.domain_name)
   zone_id = aws_route53_zone.le_tour_hosted_zone.zone_id
   type    = "AAAA"
 
@@ -68,7 +68,7 @@ resource "aws_route53_record" "webhook_url_ip6" {
 }
 
 resource "aws_route53_record" "webhook_www_ip4" {
-  name    = var.domain_name
+  name    = format("webhook.%s", var.domain_name)
   zone_id = aws_route53_zone.le_tour_hosted_zone.zone_id
   type    = "A"
 

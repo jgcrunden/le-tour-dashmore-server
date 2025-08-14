@@ -26,5 +26,5 @@ test:		## Runs the tests for the server
 	@cd server && go test ./... && cd ..
 
 tf-test:	## Runs terraform fmt, lint and trivy
-	cd terraform && terraform fmt -check
+	cd terraform && terraform fmt -check && tflint && trivy config --tf-vars terraform.tfvars .
 
