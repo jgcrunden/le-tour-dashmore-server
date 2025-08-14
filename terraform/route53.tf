@@ -55,3 +55,27 @@ resource "aws_route53_record" "www_ip4" {
   }
 }
 
+resource "aws_route53_record" "webhook_url_ip6" {
+  name    = var.domain_name
+  zone_id = aws_route53_zone.le_tour_hosted_zone.zone_id
+  type    = "AAAA"
+
+  alias {
+    name                   = aws_cloudfront_distribution.webhook_distribution.domain_name
+    zone_id                = aws_cloudfront_distribution.webhook_distribution.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+
+resource "aws_route53_record" "webhook_www_ip4" {
+  name    = var.domain_name
+  zone_id = aws_route53_zone.le_tour_hosted_zone.zone_id
+  type    = "A"
+
+  alias {
+    name                   = aws_cloudfront_distribution.webhook_distribution.domain_name
+    zone_id                = aws_cloudfront_distribution.webhook_distribution.hosted_zone_id
+    evaluate_target_health = false
+  }
+}
+

@@ -73,13 +73,23 @@ resource "aws_vpc_security_group_ingress_rule" "allow_ssh_ipv4" {
 }
 
 resource "aws_vpc_security_group_ingress_rule" "allow_http_ipv4" {
-  description       = "Allow http access to ec2 instance from cloudfront only"
+  description       = "Application Allow http access to ec2 instance from cloudfront only"
   security_group_id = aws_security_group.this.id
 
   prefix_list_id = data.aws_ec2_managed_prefix_list.cloudfront.id
   from_port      = 80
   ip_protocol    = "tcp"
   to_port        = 80
+}
+
+resource "aws_vpc_security_group_ingress_rule" "webhook_allow_http_ipv4" {
+  description       = "Webhook - Allow http access to ec2 instance from cloudfront only"
+  security_group_id = aws_security_group.this.id
+
+  prefix_list_id = data.aws_ec2_managed_prefix_list.cloudfront.id
+  from_port      = var.webhook_port
+  ip_protocol    = "tcp"
+  to_port        = var.webhook_port
 }
 
 #trivy:ignore:AVD-AWS-0104 ignore warning about egress
