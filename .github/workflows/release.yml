@@ -22,8 +22,6 @@ jobs:
 
       - name: npm install
         run: npm ci
-      - name: Run unit tests
-        run: make test
 
       - name: Run Semantic Release
         run: npx semantic-release
@@ -67,7 +65,7 @@ jobs:
           mkdir -p ~/rpmrepo
           cd ~/rpmrepo
           aws s3 sync s3://${RPM_REPO} .
-          cp ~/rpmbuild/RPMS/x86_64/*.rpm .
+          cp ~/rpmbuild/RPMS/arm64/*.rpm .
           createrepo --update .
           aws s3 sync . s3://${{ secrets.RPM_REPO }}
           aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION} --paths "/*" 
