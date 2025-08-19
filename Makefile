@@ -30,8 +30,12 @@ test:		## Runs the tests for the server
 tf-test:	## Runs terraform fmt, lint and trivy
 	cd terraform && terraform fmt -check && tflint && trivy config --tf-vars terraform.tfvars .
 
-tf-init:
+tf-init: 	## Runs terraform init
 	cd terraform && terraform init
 
+tf-plan: tf-init ## Runs terraform plan
+	cd terraform && terraform plan -var webhook_token=$(WEBHOOK_TOKEN)
+
 tf-deploy: tf-init ## Runs terraform apply
-	cd terraform && terraform apply -auto-approve
+	cd terraform && terraform apply -var webhook_token=$(WEBHOOK_TOKEN) -auto-approve
+

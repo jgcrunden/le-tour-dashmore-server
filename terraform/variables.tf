@@ -15,3 +15,7 @@ variable "public_key" {
 variable "webhook_port" {
   type = number
 }
+
+variable "webhook_token" {
+  type = string
+}

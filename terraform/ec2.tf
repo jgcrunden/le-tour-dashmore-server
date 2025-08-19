@@ -12,6 +12,19 @@ data "aws_ami" "this" {
   }
 }
 
+data "template_file" "user_data" {
+  template = file("user_data.sh.tpl")
+
+  vars = {
+    webhook_token = var.webhook_token
+    webhook_bin   = "/usr/local/bin"
+    webhook_conf  = "/etc/webhook"
+    script_name   = "upgrade.sh"
+    app           = "le-tour-dashmore-server"
+
+  }
+}
+
 resource "aws_instance" "this" {
   ami = data.aws_ami.this.id
   tags = {
@@ -30,7 +43,7 @@ resource "aws_instance" "this" {
   key_name               = aws_key_pair.ssh_access.id
   vpc_security_group_ids = [aws_security_group.this.id, aws_security_group.webhook.id]
 
-  user_data = file("user_data.sh")
+  user_data = data.template_file.user_data.rendered
 }
 
 resource "aws_key_pair" "ssh_access" {
