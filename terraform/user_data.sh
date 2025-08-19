@@ -4,16 +4,18 @@ set -eux
 
 useradd -m webhook
 
-export webhook_bin="/home/webhook/bin"
-mkdir -p ${webhook_bin}
+export webhook_bin="/usr/local/bin"
+export webhook_conf="/etc/webhook"
+mkdir -p ${webhook_conf}
 
 curl -OL https://github.com/adnanh/webhook/releases/download/2.8.2/webhook-linux-arm64.tar.gz
 tar zxf webhook-linux-arm64.tar.gz
+chown root:root webhook-linux-arm64/webhook
 mv webhook-linux-arm64/webhook ${webhook_bin}
 
 export script_name="upgrade.sh"
 
-cat > ${webhook_bin}/hooks.json << EOF
+cat > ${webhook_conf}/hooks.json << EOF
 [
 	{
 		"id": "upgrade",
@@ -41,10 +43,9 @@ sudo dnf upgrade ${app}
 EOF
 
 export password=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20)
-sed -i "s/<PASSWORD>/${password}/" ${webhook_bin}/hooks.json
+sed -i "s/<PASSWORD>/${password}/" ${webhook_conf}/hooks.json
 
-chown webhook:webhook -R ${webhook_bin}
-chmod 700 ${webhook_bin}/${script_name}
+chmod 755 ${webhook_bin}/${script_name}
 
 echo "webhook ALL=(ROOT) NOPASSWD: /usr/bin/dnf upgrade ${app}" >> /etc/sudoers
 
@@ -53,16 +54,20 @@ cat > /etc/systemd/system/webhook.service << EOF
 Description=Webhook
 After=network.target
 StartLimitIntervalSec=0
+
 [Service]
 Type=simple
 Restart=always
 RestartSec=1
 User=webhook
-ExecStart=${webhook_bin}/webhook -hooks ${webhook_bin}/hooks.json -verbose -logfile ${webhook_bin}/webhook.log
+ExecStart=${webhook_bin}/webhook -hooks ${webhook_conf}/hooks.json -verbose -logfile /home/webhook/webhook.log
 
 [Install]
 WantedBy=multi-user.target
 EOF
+
+semanage fcontext -a -t bin_t "${webhook_bin}/webhook"
+restorecon -vR "${webhook_bin}/webhook"
 
 systemctl enable webhook.service
 systemctl start webhook.service
