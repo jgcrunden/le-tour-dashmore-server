@@ -11,3 +11,7 @@ variable "domain_name" {
 variable "public_key" {
   type = string
 }
+
+variable "webhook_port" {
+  type = number
+}

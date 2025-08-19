@@ -9,22 +9,73 @@ on:
     branches: main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
-      - name: Setup Node
+
+      - name: Setup node
         uses: actions/setup-node@v4
         with:
-          node-version: 22.x
+          node-version: 22
+
       - name: npm install
         run: npm ci
-      - name: Run unit tests
-        run: make test
 
       - name: Run Semantic Release
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:42
+    needs: release
+    steps:
+      - name: Install dependencies
+        run: dnf install make go rpmbuild git rpmsign awscli createrepo nodejs npm -y
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@main
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Set up signing key
+        run: |
+          touch key.private
+          echo $"$RPM_SIGNING_KEY" | gpg --allow-secret-key-import --import -
+          echo -e "%_signature gpg\n%_gpg_name 1FB6FEF844296071A04AC99CCC3EB3AD77F673F7" > ~/.rpmmacros
+        env:
+          RPM_SIGNING_KEY: ${{ secrets.RPM_SIGNING_KEY }}
+
+      - name: Package
+        run: |
+          git config --global --add safe.directory /__w/le-tour-dashmore-server/le-tour-dashmore-server
+          git fetch --tags
+          make clean package
+      - name: Push to RPM repo
+        run: |
+          mkdir -p ~/rpmrepo
+          cd ~/rpmrepo
+          aws s3 sync s3://${RPM_REPO} .
+          cp ~/rpmbuild/RPMS/arm64/*.rpm .
+          createrepo --update .
+          aws s3 sync . s3://${{ secrets.RPM_REPO }}
+          aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION} --paths "/*" 
+        env:
+          RPM_REPO: ${{ secrets.RPM_REPO }}
+          DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION }}
+
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy infrastructure
+        run: "make tf-deploy"
+
