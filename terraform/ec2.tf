@@ -7,8 +7,7 @@ data "aws_ami" "this" {
     values = ["arm64"]
   }
   filter {
-    name = "name"
-    //values = ["al2023-ami*"]
+    name   = "name"
     values = ["Fedora-Cloud-Base-AmazonEC2.aarch64-42-1.1"]
   }
 }
@@ -30,6 +29,8 @@ resource "aws_instance" "this" {
   }
   key_name               = aws_key_pair.ssh_access.id
   vpc_security_group_ids = [aws_security_group.this.id, aws_security_group.webhook.id]
+
+  user_data = file("user_data.sh")
 }
 
 resource "aws_key_pair" "ssh_access" {

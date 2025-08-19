@@ -9,15 +9,13 @@ on:
     branches: main
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    container:
-      image: fedora:42
     steps:
-      - name: Install dependencies
-        run: dnf install make go rpmbuild git rpmsign awscli createrepo nodejs npm -y
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: npm install
         run: npm ci
@@ -28,6 +26,17 @@ jobs:
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: fedora:42
+    steps:
+      - name: Install dependencies
+        run: dnf install make go rpmbuild git rpmsign awscli createrepo -y
+
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@main
@@ -61,3 +70,10 @@ jobs:
         env:
           RPM_REPO: ${{ secrets.RPM_REPO }}
           DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION }}
+
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy infrastructure
+        run: "make tf-apply"
+
