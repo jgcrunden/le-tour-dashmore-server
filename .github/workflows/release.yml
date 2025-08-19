@@ -61,3 +61,10 @@ jobs:
         env:
           RPM_REPO: ${{ secrets.RPM_REPO }}
           DISTRIBUTION: ${{ secrets.CLOUDFRONT_DISTRIBUTION }}
+
+      - name: Set up terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Deploy infrastructure
+        run: "make tf-apply"
+
