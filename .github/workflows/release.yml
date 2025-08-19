@@ -30,10 +30,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build:
+  build-and-deploy:
     runs-on: ubuntu-latest
     container:
       image: fedora:42
+    needs: release
     steps:
       - name: Install dependencies
         run: dnf install make go rpmbuild git rpmsign awscli createrepo -y
