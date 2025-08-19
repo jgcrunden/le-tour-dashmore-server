@@ -4,16 +4,12 @@ set -eux
 
 useradd -m webhook
 
-export webhook_bin="/usr/local/bin"
-export webhook_conf="/etc/webhook"
 mkdir -p ${webhook_conf}
 
 curl -OL https://github.com/adnanh/webhook/releases/download/2.8.2/webhook-linux-arm64.tar.gz
 tar zxf webhook-linux-arm64.tar.gz
 chown root:root webhook-linux-arm64/webhook
 mv webhook-linux-arm64/webhook ${webhook_bin}
-
-export script_name="upgrade.sh"
 
 cat > ${webhook_conf}/hooks.json << EOF
 [
@@ -24,7 +20,7 @@ cat > ${webhook_conf}/hooks.json << EOF
 		"trigger-rule": {
 			"match": {
 				"type": "value",
-				"value": "<PASSWORD>",
+				"value": "${webhook_token}",
 				"parameter": {
 					"source": "url",
 					"name": "token"
@@ -35,15 +31,11 @@ cat > ${webhook_conf}/hooks.json << EOF
 ]
 EOF
 
-export app=le-tour-dashmore-server
 cat > ${webhook_bin}/${script_name} << EOF
 #!/bin/bash
 
 sudo dnf upgrade ${app}
 EOF
-
-export password=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 20)
-sed -i "s/<PASSWORD>/${password}/" ${webhook_conf}/hooks.json
 
 chmod 755 ${webhook_bin}/${script_name}
 
@@ -78,11 +70,11 @@ name=Joshua Crunden
 baseurl=https://rpm.joshuacrunden.com
 enabled=1
 gpgcheck=1
-gpgkey=https://rpm.joshuacrunden.com/pgp-key.public
+gpgkey=https://rpm.joshuacrunden.com/public.key
 EOF
 
-dnf upgrade -y
+rpm --import https://rpm.joshuacrunden.com/public.key
 
-rpm --import https://rpm.joshuacrunden.com/pgp-key.public
+dnf upgrade -y
 dnf install ${app} -y
 reboot

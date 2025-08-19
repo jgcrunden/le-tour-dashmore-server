@@ -34,11 +34,10 @@ jobs:
 
       - name: Test Terraform
         run: |
-          cd terraform
-          terraform fmt --check
-          tflint
-          trivy config --tf-vars terraform.tfvars .
-          terraform init
-          terraform plan
+          make tf-test
+          make tf-plan
+        env:
+          WEBHOOK_TOKEN: ${{ secrets.WEBHOOK_TOKEN }}
+
       - name: Run unit tests
         run: make test
