@@ -77,5 +77,5 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Deploy infrastructure
-        run: "make tf-apply"
+        run: "make tf-deploy"
 
