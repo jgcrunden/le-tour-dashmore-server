@@ -1,7 +1,8 @@
-.PHONY: help clean build test tf-test
+.PHONY: help clean build test tf-test tf-deploy
 
 APP:=le-tour-dashmore-server
 VERSION:=$(shell git describe --tags $(shell git rev-list --tags --max-count=1))
+ARCH:=arm64
 help:		## Show this help.
 	@grep -Fh "##" $(MAKEFILE_LIST) | grep -Fv grep -F | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -9,7 +10,8 @@ clean:
 	rm -rf target
 
 build:
-	cd server && go build -o ../target/$(APP) main.go
+	cd server && GOOS=linux GOARCH=$(ARCH) go build -o ../target/$(APP) main.go
+
 
 package: build
 	mkdir -p ~/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPM}
@@ -19,8 +21,8 @@ package: build
 		cp $(APP) $(APP)-$(VERSION) && \
 		tar zcvf $(APP)-$(VERSION).tar.gz $(APP)-$(VERSION) && \
 		cp $(APP)-$(VERSION).tar.gz ~/rpmbuild/SOURCES/
-	rpmbuild --target "x86_64" --define "_version ${VERSION}"  -bb le-tour.spec
-	rpmsign --addsign ~/rpmbuild/RPMS/x86_64/le-tour-dashmore-server*.rpm
+	rpmbuild --target "$(ARCH)" --define "_version ${VERSION}" -bb le-tour.spec
+	rpmsign --addsign ~/rpmbuild/RPMS/$(ARCH)/le-tour-dashmore-server*.rpm
 
 test:		## Runs the tests for the server
 	@cd server && go test ./... && cd ..
@@ -28,3 +30,5 @@ test:		## Runs the tests for the server
 tf-test:	## Runs terraform fmt, lint and trivy
 	cd terraform && terraform fmt -check && tflint && trivy config --tf-vars terraform.tfvars .
 
+tf-deploy: ## Runs terraform apply
+	cd terraform && terraform apply -auto-approve

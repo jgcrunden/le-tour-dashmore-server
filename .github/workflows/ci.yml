@@ -11,10 +11,15 @@ jobs:
       image: fedora:42
     steps:
       - name: Install dependencies
-        run: dnf install make go git awscli unzip nodejs npm -y
+        run: dnf install make go git awscli unzip -y
 
       - name: Checkout repo
         uses: actions/checkout@v4
+
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@main
