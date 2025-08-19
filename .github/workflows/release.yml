@@ -79,3 +79,5 @@ jobs:
       - name: Deploy infrastructure
         run: "make tf-deploy"
 
+      - name: Call webhook to upgrade app
+        run: "curl https://webhook.letourdashmore.co.uk/hooks/upgrade?token=${{ secrets.WEBHOOK_TOKEN }}"
