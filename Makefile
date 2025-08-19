@@ -30,5 +30,8 @@ test:		## Runs the tests for the server
 tf-test:	## Runs terraform fmt, lint and trivy
 	cd terraform && terraform fmt -check && tflint && trivy config --tf-vars terraform.tfvars .
 
-tf-deploy: ## Runs terraform apply
+tf-init:
+	cd terraform && terraform init
+
+tf-deploy: tf-init ## Runs terraform apply
 	cd terraform && terraform apply -auto-approve
