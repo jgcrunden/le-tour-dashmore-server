@@ -46,9 +46,26 @@ sed -i "s/<PASSWORD>/${password}/" ${webhook_bin}/hooks.json
 chown webhook:webhook -R ${webhook_bin}
 chmod 700 ${webhook_bin}/${script_name}
 
-sudo -u webhook bash -c "nohup ${webhook_bin}/webhook -hooks ${webhook_bin}/hooks.json -verbose -logfile ${webhook_bin}/webhook.log &"
-
 echo "webhook ALL=(ROOT) NOPASSWD: /usr/bin/dnf upgrade ${app}" >> /etc/sudoers
+
+cat > /etc/systemd/system/webhook.service << EOF
+[Unit]
+Description=Webhook
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=webhook
+ExecStart=${webhook_bin}/webhook -hooks ${webhook_bin}/hooks.json -verbose -logfile ${webhook_bin}/webhook.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl enable webhook.service
+systemctl start webhook.service
 
 cat > /etc/yum.repos.d/joshuacrunden.repo << EOF
 [joshuacrunden]
@@ -61,5 +78,6 @@ EOF
 
 dnf upgrade -y
 
- dnf install ${app}
+rpm --import https://rpm.joshuacrunden.com/pgp-key.public
+dnf install ${app} -y
 reboot
