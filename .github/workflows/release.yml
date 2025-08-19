@@ -35,7 +35,7 @@ jobs:
     needs: release
     steps:
       - name: Install dependencies
-        run: dnf install make go rpmbuild git rpmsign awscli createrepo -y
+        run: dnf install make go rpmbuild git rpmsign awscli createrepo nodejs npm -y
 
       - name: Checkout repo
         uses: actions/checkout@v4
