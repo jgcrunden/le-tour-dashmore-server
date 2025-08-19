@@ -65,7 +65,7 @@ jobs:
           mkdir -p ~/rpmrepo
           cd ~/rpmrepo
           aws s3 sync s3://${RPM_REPO} .
-          cp ~/rpmbuild/RPMS/arm64/*.rpm .
+          cp ~/rpmbuild/RPMS/aarch64/*.rpm .
           createrepo --update .
           aws s3 sync . s3://${{ secrets.RPM_REPO }}
           aws cloudfront create-invalidation --distribution-id ${DISTRIBUTION} --paths "/*" 
