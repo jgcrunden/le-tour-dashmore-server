@@ -2,7 +2,7 @@
 
 APP:=le-tour-dashmore-server
 VERSION:=$(shell git describe --tags $(shell git rev-list --tags --max-count=1))
-ARCH:=arm64
+ARCH:=aarch64
 help:		## Show this help.
 	@grep -Fh "##" $(MAKEFILE_LIST) | grep -Fv grep -F | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -10,7 +10,7 @@ clean:
 	rm -rf target
 
 build:
-	cd server && GOOS=linux GOARCH=$(ARCH) go build -o ../target/$(APP) main.go
+	cd server && GOOS=linux GOARCH=arm64 go build -o ../target/$(APP) main.go
 
 
 package: build
