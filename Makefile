@@ -1,8 +1,9 @@
 .PHONY: help clean build test tf-test tf-deploy
 
 APP:=le-tour-dashmore-server
-VERSION:=$(shell git describe --tags $(shell git rev-list --tags --max-count=1))
-ARCH:=aarch64
+#VERSION:=$(shell git describe --tags $(shell git rev-list --tags --max-count=1))
+VERSION=1.23.0
+ARCH?=aarch64
 help:		## Show this help.
 	@grep -Fh "##" $(MAKEFILE_LIST) | grep -Fv grep -F | sed -e 's/\\$$//' | sed -e 's/##//'
 
@@ -19,6 +20,11 @@ package: build
 	cd target && \
 		mkdir $(APP)-$(VERSION) && \
 		cp $(APP) $(APP)-$(VERSION) && \
+		cp ../scripts/le-tour-dashmore-server.service $(APP)-$(VERSION) && \
+		cp ../scripts/le-tour-setup.service $(APP)-$(VERSION) && \
+		cp ../server/config/server.conf $(APP)-$(VERSION) && \
+		cp ../scripts/database-setup.sql $(APP)-$(VERSION) && \
+		cp ../scripts/le-tour-setup.sh $(APP)-$(VERSION) && \
 		tar zcvf $(APP)-$(VERSION).tar.gz $(APP)-$(VERSION) && \
 		cp $(APP)-$(VERSION).tar.gz ~/rpmbuild/SOURCES/
 	rpmbuild --target "$(ARCH)" --define "_version ${VERSION}" -bb le-tour.spec

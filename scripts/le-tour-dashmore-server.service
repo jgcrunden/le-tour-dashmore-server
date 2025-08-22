@@ -1,0 +1,15 @@
+[Unit]
+Description=Le Tour d'Ashmore Server
+After=network.target
+Requires=le-tour-setup.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=1
+User=letour
+ExecStart=/usr/bin/le-tour-dashmore-server
+
+[Install]
+WantedBy=multi-user.target
