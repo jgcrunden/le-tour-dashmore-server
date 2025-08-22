@@ -1,13 +1,15 @@
 package main
 
 import (
-	"database/sql"
+	"flag"
 	"fmt"
 	"le-tour-dashmore-server/dataextractor"
 	"le-tour-dashmore-server/dbclient/databases"
 	"le-tour-dashmore-server/model"
 	"le-tour-dashmore-server/teammanager"
+	"net/http"
 
+	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
 	"github.com/magiconair/properties"
 )
@@ -17,18 +19,31 @@ type TableTitleLocator struct {
 	TitleName string
 }
 
-var db *sql.DB
+//var db *sql.DB
+var cfg model.Config
 
 func main() {
 
-	p := properties.MustLoadFile("./config/application.properties", properties.UTF8)
+	confFilePtr := flag.String("f", "/etc/le-tour-dashmore-server/server.conf", "path to config file")
+	flag.Parse()
+	p := properties.MustLoadFile(*confFilePtr, properties.UTF8)
 	var cfg model.Config
 
 	if err := p.Decode(&cfg); err != nil {
 		fmt.Println("Error reading config file", err)
 		return
 	}
-	
+
+	r := gin.Default()
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "pong",
+		})
+	})
+	r.Run()
+}
+
+func App() {
 	dbClient := databases.NewPostgresClient(cfg.DBHost, cfg.DBUser, cfg.DBPassword)
 	extractor := dataextractor.NewExtractor(dbClient, cfg)
 	extractor.GetRaceDetails()
@@ -38,7 +53,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	
+
 	for _, v := range stages {
 		_, err := extractor.GetStageResults(v)
 		if err != nil {
@@ -52,37 +67,37 @@ func main() {
 	}
 	manager := teammanager.NewTeamManager(dbClient)
 	/*
-	_ = model.FantasyTeam {
-		Name:   "My team",
-		Goal:   model.GC,
-		Points: 0,
-		Riders: []model.Rider{
-			{
-				Name:   "PHILIPSEN Jasper",
+		_ = model.FantasyTeam {
+			Name:   "My team",
+			Goal:   model.GC,
+			Points: 0,
+			Riders: []model.Rider{
+				{
+					Name:   "PHILIPSEN Jasper",
+				},
+				{
+					Name:   "EVENEPOEL Remco",
+				},
+				{
+					Name: "PEDERSEN Mads",
+				},
+				{
+					Name: "VINGEGAARD Jonas",
+				},
+				{
+					Name: "YATES Adam",
+				},
+				{
+					Name: "VAN DER POEL Mathieu",
+				},
+				{
+					Name: "VAN AERT Wout",
+				},
+				{
+					Name: "ROGLIČ Primož",
+				},
 			},
-			{
-				Name:   "EVENEPOEL Remco",
-			},
-			{
-				Name: "PEDERSEN Mads",
-			},
-			{
-				Name: "VINGEGAARD Jonas",
-			},
-			{
-				Name: "YATES Adam",
-			},
-			{
-				Name: "VAN DER POEL Mathieu",
-			},
-			{
-				Name: "VAN AERT Wout",
-			},
-			{
-				Name: "ROGLIČ Primož",
-			},
-		},
-	}
+		}
 
 	*/
 	// The boys #FFA500
@@ -121,11 +136,10 @@ func main() {
 		return
 	}
 	/*
-	for k, v := range res {
-		fmt.Printf("%s: GC_RANK: %v; GC_TIME: %v; PNTS_RANK: %v; PNTS: %v; KOM_RANK: %v; KOM: %v; YOUTH_RANK: %v\n", k, v.TimeRanking, v.Time, v.SprintRanking, v.Sprint, v.ClimberRanking, v.Climber, v.YoungRiderRanking)
-	}
+		for k, v := range res {
+			fmt.Printf("%s: GC_RANK: %v; GC_TIME: %v; PNTS_RANK: %v; PNTS: %v; KOM_RANK: %v; KOM: %v; YOUTH_RANK: %v\n", k, v.TimeRanking, v.Time, v.SprintRanking, v.Sprint, v.ClimberRanking, v.Climber, v.YoungRiderRanking)
+		}
 	*/
 	//connStr := "user=postgres dbname=letour sslmode=disable"
 
 }
-

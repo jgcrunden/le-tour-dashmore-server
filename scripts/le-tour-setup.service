@@ -1,0 +1,12 @@
+[Unit]
+Description=Le Tour d'Ashmore Server Setup
+After=network.target
+Requires=postgresql.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/le-tour-setup.sh
+
+[Install]
+WantedBy=multi-user.target
