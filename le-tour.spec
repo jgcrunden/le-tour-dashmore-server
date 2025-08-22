@@ -47,6 +47,11 @@ if [ $? -ne 0 ]
 then
     useradd %{appuser}
 fi
+# initialise postgresql database if it hasn't already been done
+if [ ! -d "/var/lib/pgsql/data" ]
+then
+        /usr/bin/postgresql-setup --initdb
+fi
 
 %post
 %systemd_post %{name}.service
